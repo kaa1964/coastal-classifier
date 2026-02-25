@@ -1,0 +1,28 @@
+# Виртуальное окружение
+venv/
+.env/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Дистрибутивы
+dist/
+build/
+*.egg-info/
+
+# VS Code
+.vscode/
+
+# Данные (кроме пустых папок)
+data/*
+!data/.gitkeep
+
+# Тестовые файлы (кроме нужных для разработки)
+test_*.py
+!test_gui.py
+!test_imports.py
+!check_env.py
