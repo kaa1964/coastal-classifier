@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
 """
 Главный файл приложения Coastal Classifier
-Запускает окно регистрации и затем главное окно с картой
 """
 
 import sys
+from pathlib import Path
 from PySide6.QtWidgets import QApplication
 
-# Импортируем наше окно регистрации
+# Добавляем путь к проекту
+sys.path.append(str(Path(__file__).parent))
+
 from src.gui.registration_dialog import RegistrationDialog
+from src.gui.main_window import MainWindow  # Добавлен импорт
+from src.utils.config_manager import get_config_manager
+from src.utils.i18n import get_i18n
 
 
 def main():
@@ -19,36 +24,41 @@ def main():
     app.setApplicationName("Coastal Classifier")
     app.setOrganizationName("CoastalResearch")
     
+    # Загружаем конфигурацию
+    config = get_config_manager()
+    i18n = get_i18n()
+    
+    print("=" * 50)
+    print("Coastal Classifier")
+    print("=" * 50)
+    print(f"Конфигурация: {config.config_file}")
+    print(f"Язык интерфейса: {config.get_language()}")
+    print("=" * 50)
+    
     # Показываем окно регистрации
     dialog = RegistrationDialog()
     
     # Если пользователь нажал "Начать работу"
     if dialog.exec() == RegistrationDialog.Accepted:
-        # Получаем данные пользователя
         user_data = dialog.get_user_data()
         
-        print("=" * 50)
+        print("\n" + "=" * 50)
         print("РЕГИСТРАЦИЯ УСПЕШНА")
         print("=" * 50)
         print(f"Пользователь: {user_data['first_name']} {user_data['last_name']}")
-        print(f"Дата: {user_data['date']}")
-        print(f"Файл для сохранения: {user_data['filename']}")
+        print(f"Сессия: {user_data['session_number']}")
+        print(f"Файл: {user_data['filename']}")
         print("=" * 50)
         
-        # Здесь позже будет вызов главного окна
-        print("Запуск главного окна приложения...")
-        print("(будет добавлено на следующем шаге)")
+        # Создаем и показываем главное окно
+        window = MainWindow(user_data)
+        window.show()
         
-        # TODO: Создать и показать главное окно с картой
-        # from src.gui.main_window import MainWindow
-        # window = MainWindow(user_data)
-        # window.show()
-        
-        return 0  # Успешное завершение
+        return app.exec()
     
     else:
-        print("Регистрация отменена. Выход.")
-        return 1  # Пользователь отменил
+        print("\nРегистрация отменена. Выход.")
+        return 1
 
 
 if __name__ == "__main__":
