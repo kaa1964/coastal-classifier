@@ -5,164 +5,52 @@
 import sys
 import os
 import tempfile
+import json
 from pathlib import Path
+from datetime import datetime
 
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, 
                                QHBoxLayout, QSplitter, QLabel, 
                                QPushButton, QComboBox, QTextEdit,
                                QGroupBox, QFormLayout, QMessageBox,
                                QStatusBar)
-from PySide6.QtCore import Qt, QUrl
+from PySide6.QtCore import Qt, QUrl, Signal, Slot, QTimer
 from PySide6.QtGui import QAction
 
-# Для веб-движка - правильный импорт для PySide6
+import folium
+from folium import ClickForMarker  # Добавьте эту строку
+
+from src.gui.map_widget import MapWidget  # ЭТО НУЖНО ДОБАВИТЬ
+# from src.api.elevation_api import ElevationAPI
+from src.api.overpass_api import OverpassAPI
+from src.api.noaa_api import NOAAAPI
+
+# Для веб-движка
 try:
-    # QWebEngineView находится в QtWebEngineWidgets
     from PySide6.QtWebEngineWidgets import QWebEngineView
-    
-    # Остальные классы - в QtWebEngineCore
     from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
-    
+    from PySide6.QtWebChannel import QWebChannel
     print("✓ QtWebEngine импортирован успешно")
-    print("  - QWebEngineView из QtWebEngineWidgets")
-    print("  - QWebEngineCore для вспомогательных классов")
-    
 except ImportError as e:
     print(f"✗ ОШИБКА: QtWebEngine не найден! {e}")
-    print("Убедитесь, что установлены пакеты: PySide6, PySide6-Addons")
-    print("Текущие пакеты PySide6:")
-    import subprocess
-    subprocess.run(["pip", "list | grep PySide"], shell=True)
     sys.exit(1)
 
 import folium
-import json
-from datetime import datetime
 
 # Добавляем путь к проекту
 sys.path.append(str(Path(__file__).parent.parent.parent))
 from src.utils.config_manager import get_config_manager
 from src.utils.i18n import get_i18n
 
-######################
-class MapView(QWebEngineView):
-    """Виджет для отображения карты Folium"""
-    
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.parent = parent
-        
-        # Создаем временную папку
-        import tempfile
-        self.temp_dir = tempfile.mkdtemp()
-        print(f"✓ Создана временная папка: {self.temp_dir}")
-        
-        # Путь к HTML файлу карты
-        self.map_path = os.path.join(self.temp_dir, 'map.html')
-        print(f"✓ Путь к карте: {self.map_path}")
-        
-        self.current_map = None
-        
-        # Настройки веб-виджета
-        self.settings().setAttribute(self.settings().WebAttribute.LocalContentCanAccessFileUrls, True)
-        self.settings().setAttribute(self.settings().WebAttribute.LocalContentCanAccessRemoteUrls, True)
-        
-        # Инициализируем карту
-        self.init_map()
-        
-        # Подключаем сигнал загрузки
-        self.loadFinished.connect(self.on_load_finished)
-    
-    def on_load_finished(self, ok):
-        """Вызывается когда страница загружена"""
-        if ok:
-            print(f"✓ Карта загружена успешно: {self.map_path}")
-        else:
-            print(f"✗ Ошибка загрузки карты: {self.map_path}")
-    
-    def init_map(self, lat=20.0, lon=110.0, zoom=5):
-        """Инициализация карты"""
-        print(f"\n--- Инициализация карты ---")
-        print(f"Параметры: lat={lat}, lon={lon}, zoom={zoom}")
-        
-        try:
-            # Создаем карту Folium
-            self.current_map = folium.Map(
-                location=[lat, lon],
-                zoom_start=zoom,
-                tiles='OpenStreetMap',
-                control_scale=True
-            )
-            print("✓ Карта Folium создана")
-            
-            # Добавляем обработчик кликов
-            self.current_map.add_child(folium.LatLngPopup())
-            print("✓ Обработчик кликов добавлен")
-            
-            # Сохраняем временный HTML файл
-            self.current_map.save(self.map_path)
-            print(f"✓ Карта сохранена в: {self.map_path}")
-            
-            # Проверяем, существует ли файл
-            if os.path.exists(self.map_path):
-                file_size = os.path.getsize(self.map_path)
-                print(f"✓ Файл существует, размер: {file_size} байт")
-                
-                # Покажем первые несколько строк файла для проверки
-                try:
-                    with open(self.map_path, 'r', encoding='utf-8') as f:
-                        first_lines = ''.join([f.readline() for _ in range(5)])
-                    print(f"Первые строки HTML:\n{first_lines}")
-                except Exception as e:
-                    print(f"Не удалось прочитать файл: {e}")
-            else:
-                print("✗ ФАЙЛ НЕ СОЗДАН!")
-                return
-            
-            # Загружаем в веб-виджет
-            url = QUrl.fromLocalFile(self.map_path)
-            print(f"Загружаем URL: {url.toString()}")
-            self.load(url)
-            
-        except Exception as e:
-            print(f"✗ ОШИБКА при создании карты: {e}")
-            import traceback
-            traceback.print_exc()
-    
-    def add_marker(self, lat, lon, popup_text=None):
-        """Добавляет маркер на карту"""
-        if self.current_map:
-            try:
-                folium.Marker(
-                    [lat, lon],
-                    popup=popup_text or f"{lat:.4f}, {lon:.4f}",
-                    icon=folium.Icon(color='red', icon='info-sign')
-                ).add_to(self.current_map)
-                self.current_map.save(self.map_path)
-                self.reload()
-                print(f"✓ Маркер добавлен: {lat}, {lon}")
-            except Exception as e:
-                print(f"✗ Ошибка добавления маркера: {e}")
-    
-    def clear_markers(self):
-        """Очищает все маркеры"""
-        try:
-            # Пересоздаем карту без маркеров
-            center = self.current_map.location if self.current_map else [20.0, 110.0]
-            zoom = self.current_map.zoom_start if self.current_map else 5
-            self.init_map(center[0], center[1], zoom)
-            print("✓ Маркеры очищены")
-        except Exception as e:
-            print(f"✗ Ошибка очистки маркеров: {e}")
-    
-    def get_zoom(self):
-        """Возвращает текущий зум (заглушка)"""
-        return 5
-    
-    def get_center(self):
-        """Возвращает центр карты (заглушка)"""
-        return [20.0, 110.0]
-##############################
+from src.api.elevation_api import ElevationAPI
+
+from src.api.copernicus_api import get_bathymetry
+from src.core.geojson_exporter import GeoJSONExporter
+
+##################################################
+
+
+##################################################
 class MainWindow(QMainWindow):
     """Главное окно приложения"""
     
@@ -177,6 +65,9 @@ class MainWindow(QMainWindow):
         # Данные сессии
         self.session_points = []  # Список размеченных точек
         self.current_point = None  # Текущая выбранная точка
+        self.temp_point = None  # Временная точка для предпросмотра
+
+
         
         # Настройки окна
         self.setWindowTitle(self.i18n.t('main_window_title'))
@@ -192,6 +83,17 @@ class MainWindow(QMainWindow):
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
         self.update_status()
+        
+        print("\n✓ ГЛАВНОЕ ОКНО ГОТОВО")
+        print("="*50)
+        
+        # Добавить эту строку
+        # self.elevation_api = ElevationAPI()
+        
+        self.overpass = OverpassAPI()
+        self.elevation_api = ElevationAPI()
+        self.noaa_api = NOAAAPI()
+
     
     def center_window(self):
         """Центрирует окно на экране"""
@@ -210,22 +112,34 @@ class MainWindow(QMainWindow):
         
         # Главный layout
         main_layout = QHBoxLayout(central_widget)
+        main_layout.setContentsMargins(0, 0, 0, 0)
         
-        # Создаем сплиттер для изменения размеров
+        # Создаем сплиттер
         splitter = QSplitter(Qt.Horizontal)
         
         # ===== Левая панель - карта =====
-        self.map_view = MapView(self)
-        splitter.addWidget(self.map_view)
+        print("Создание виджета карты...")
+        # self.map_view = MapView(self)
+        self.map_view = MapWidget(self)
+        # self.map_view.coordinates_clicked.connect(self.on_map_click)
+        self.map_view.mapClicked.connect(self.on_map_click)
         
-        # ===== Правая панель - информация и управление =====
+        # ЭТО ВАЖНО!
+        print("✓ Сигнал карты подключен к MainWindow")
+        
+        splitter.addWidget(self.map_view)
+        print("✓ Виджет карты создан")
+        
+        # ===== Правая панель =====
         right_panel = QWidget()
+        right_panel.setMaximumWidth(400)
+        right_panel.setMinimumWidth(300)
         right_layout = QVBoxLayout(right_panel)
         
-        # Информация о пользователе и сессии
+        # Информация о пользователе
         self.add_user_info_panel(right_layout)
         
-        # Информация о выбранной точке
+        # Информация о точке
         self.add_point_info_panel(right_layout)
         
         # Панель классов
@@ -234,13 +148,16 @@ class MainWindow(QMainWindow):
         # Кнопки управления
         self.add_control_buttons(right_layout)
         
-        # История действий
+        # История
         self.add_history_panel(right_layout)
+        
+        # Растягивающийся элемент в конце
+        right_layout.addStretch()
         
         splitter.addWidget(right_panel)
         
-        # Устанавливаем пропорции (карта занимает 70% ширины)
-        splitter.setSizes([840, 360])  # 70% и 30%
+        # Устанавливаем пропорции
+        splitter.setSizes([800, 400])
         
         main_layout.addWidget(splitter)
     
@@ -263,7 +180,7 @@ class MainWindow(QMainWindow):
         
         group.setLayout(group_layout)
         layout.addWidget(group)
-    
+    #################################################################
     def add_point_info_panel(self, layout):
         """Панель информации о выбранной точке"""
         group = QGroupBox(self.i18n.t('point_info'))
@@ -277,19 +194,33 @@ class MainWindow(QMainWindow):
         self.lon_label = QLabel("-")
         group_layout.addRow(self.i18n.t('longitude'), self.lon_label)
         
-        # Высота (будет получена из API)
-        self.elevation_label = QLabel("...")
+        # Высота/глубина
+        self.elevation_label = QLabel("-")
         group_layout.addRow(self.i18n.t('elevation'), self.elevation_label)
         
-        # Дополнительная информация (будет расширяться)
+        # Дополнительная информация (объекты OSM, источники данных)
         self.extra_info = QTextEdit()
         self.extra_info.setReadOnly(True)
-        self.extra_info.setMaximumHeight(100)
-        group_layout.addRow("API Data:", self.extra_info)
+        self.extra_info.setMaximumHeight(200)
+        self.extra_info.setMinimumHeight(100)
+        self.extra_info.setStyleSheet("""
+            QTextEdit {
+                background-color: #f5f5f5;
+                border: 1px solid #ccc;
+                border-radius: 3px;
+                padding: 5px;
+                font-family: monospace;
+                font-size: 10pt;
+            }
+        """)
+        group_layout.addRow("Детали:", self.extra_info)
         
         group.setLayout(group_layout)
         layout.addWidget(group)
-    
+        
+
+
+    ######################################################
     def add_class_panel(self, layout):
         """Панель выбора класса"""
         group = QGroupBox(self.i18n.t('class_selection'))
@@ -306,6 +237,8 @@ class MainWindow(QMainWindow):
         
         # Кнопка добавления
         self.add_button = QPushButton(self.i18n.t('add_point'))
+        self.add_button.setEnabled(False)
+
         self.add_button.clicked.connect(self.on_add_point)
         group_layout.addWidget(self.add_button)
         
@@ -314,28 +247,27 @@ class MainWindow(QMainWindow):
     
     def add_control_buttons(self, layout):
         """Кнопки управления"""
+        # Кнопки в ряд
         button_layout = QHBoxLayout()
         
-        # Отмена последнего действия
         self.undo_button = QPushButton(self.i18n.t('undo'))
         self.undo_button.clicked.connect(self.on_undo)
         self.undo_button.setEnabled(False)
         button_layout.addWidget(self.undo_button)
         
-        # Экспорт
         self.export_button = QPushButton(self.i18n.t('export'))
         self.export_button.clicked.connect(self.on_export)
         button_layout.addWidget(self.export_button)
         
         layout.addLayout(button_layout)
         
-        # Выход
-        self.exit_button = QPushButton(self.i18n.t('exit_without_save'))
+        # Кнопка выхода
+        self.exit_button = QPushButton(self.i18n.t('exit'))
         self.exit_button.clicked.connect(self.on_exit)
         layout.addWidget(self.exit_button)
     
     def add_history_panel(self, layout):
-        """Панель истории действий"""
+        """Панель истории"""
         group = QGroupBox("History")
         group_layout = QVBoxLayout()
         
@@ -346,54 +278,184 @@ class MainWindow(QMainWindow):
         
         group.setLayout(group_layout)
         layout.addWidget(group)
+    ####################
+    @Slot(float, float)
+    def on_map_click(self, lat, lon):
+        print(f"\n🎯 ГЛАВНОЕ ОКНО: получены координаты {lat:.6f}, {lon:.6f}")
+        
+        # 1. Получаем данные
+        elevation = self.elevation_api.get_elevation(lat, lon)
+        noaa_data = self.noaa_api.get_depth(lat, lon)
+        osm_features = self.overpass.get_coastal_features(lat, lon)
+        
+        # 2. Сохраняем временную точку
+        self.temp_point = {
+            'lat': lat,
+            'lon': lon,
+            'elevation': elevation,
+            'noaa': noaa_data,
+            'osm_features': osm_features
+        }
+        
+        # 3. Обновляем информацию на панели
+        self.update_point_info(self.temp_point)
+        
+        # 4. Добавляем ВРЕМЕННЫЙ маркер
+        self.map_view.add_temp_marker(lat, lon, "Предпросмотр")  # Проверьте эту строку
+        
+        # 5. Активируем кнопку
+        self.add_button.setEnabled(True)
+        
+        print("✓ Точка предпросмотра. Выберите класс и нажмите 'Добавить точку'")
     
-    def update_status(self):
-        """Обновляет статусную строку"""
-        status = f"Points: {len(self.session_points)} | User: {self.user_data['first_name']} {self.user_data['last_name']} | Session: {self.user_data['session_number']}"
-        self.status_bar.showMessage(status)
     
+    ###########################
     def on_add_point(self):
-        """Обработка добавления точки"""
-        # TODO: Получить координаты из карты
-        # TODO: Получить данные из API
-        # TODO: Сохранить точку
+        if not hasattr(self, 'temp_point') or not self.temp_point:
+            QMessageBox.warning(self, "Внимание", "Сначала выберите точку на карте")
+            return
         
-        # Пока просто заглушка
-        self.session_points.append({
+        class_code = self.class_combo.currentData()
+        class_name = self.class_combo.currentText()
+        
+        point = {
             'timestamp': datetime.now().isoformat(),
-            'class': self.class_combo.currentData()
-        })
+            'lat': self.temp_point['lat'],
+            'lon': self.temp_point['lon'],
+            'elevation': self.temp_point.get('elevation'),
+            'noaa': self.temp_point.get('noaa'),
+            'osm_features': self.temp_point.get('osm_features', {}),
+            'class_code': class_code,
+            'class_name': class_name,
+            'number': len(self.session_points) + 1
+        }
         
-        self.points_label.setText(str(len(self.session_points)))
+        self.session_points.append(point)
+        
+        self.map_view.clear_markers()
+        for p in self.session_points:
+            self.map_view.add_marker(p['lat'], p['lon'], f"#{p['number']}: {p['class_name']}")
+        
+        self.update_history()
+        self.temp_point = None
+        self.add_button.setEnabled(False)
         self.undo_button.setEnabled(True)
-        
-        # Добавляем в историю
-        self.history_text.append(f"Added point #{len(self.session_points)}")
-        
         self.update_status()
-    
+        
+        print(f"✓ Точка #{point['number']} добавлена: {class_name}")
+
+
+    ################################################
+    def update_point_info(self, point):
+        """Обновляет информацию о последней точке"""
+        self.lat_label.setText(f"{point['lat']:.6f}°")
+        self.lon_label.setText(f"{point['lon']:.6f}°")
+        
+        # Формируем текст для поля высоты/глубины
+        if point.get('noaa'):
+            value = point['noaa']['value']
+            if value < 0:
+                self.elevation_label.setText(f"↓ {abs(value):.1f} м (глубина)")
+            else:
+                self.elevation_label.setText(f"↑ {value:.1f} м (высота)")
+        elif point.get('elevation') is not None:
+            self.elevation_label.setText(f"↑ {point['elevation']:.1f} м (SRTM)")
+        else:
+            self.elevation_label.setText("н/д")
+
+    def add_marker_to_map(self, point):
+        """Добавляет маркер на карту"""
+        self.map_view.add_marker(
+            point['lat'], 
+            point['lon'], 
+            f"#{len(self.session_points)}: {point['class_name']}"
+        )
+
+    def update_history(self):
+        """Обновляет историю точек"""
+        self.history_text.clear()
+        for i, point in enumerate(self.session_points, 1):
+            class_name = point['class_name']
+            depth_info = ""
+            if point.get('noaa') and point['noaa']['value'] < 0:
+                depth_info = f" (глуб.{abs(point['noaa']['value']):.0f}м)"
+            self.history_text.append(f"{i}. {class_name}{depth_info}")
+     
+    ###############################################    
     def on_undo(self):
-        """Отмена последнего действия"""
+        if not self.session_points:
+            return
+        
+        removed = self.session_points.pop()
+        
+        self.map_view.clear_markers()
+        for point in self.session_points:
+            self.map_view.add_marker(point['lat'], point['lon'], f"#{point['number']}: {point['class_name']}")
+        
+        if self.temp_point:
+            self.map_view.add_temp_marker(self.temp_point['lat'], self.temp_point['lon'], "Предпросмотр")
+        
+        self.update_history()
+        
         if self.session_points:
-            removed = self.session_points.pop()
-            self.history_text.append(f"Undid point #{len(self.session_points) + 1}")
-            self.points_label.setText(str(len(self.session_points)))
-            
-            if not self.session_points:
-                self.undo_button.setEnabled(False)
-            
-            self.update_status()
+            self.update_point_info(self.session_points[-1])
+        elif self.temp_point:
+            self.update_point_info(self.temp_point)
+        else:
+            self.lat_label.setText("-")
+            self.lon_label.setText("-")
+            self.elevation_label.setText("-")
+        
+        self.undo_button.setEnabled(len(self.session_points) > 0)
+        self.update_status()
+        
+        print(f"✓ Точка удалена. Осталось: {len(self.session_points)}")    
+        
     
+    
+    ################################################
     def on_export(self):
-        """Экспорт данных в GeoJSON"""
-        # TODO: Реализовать экспорт
-        QMessageBox.information(self, "Export", "Export functionality will be implemented")
-    
+        """Экспорт всех точек сессии в GeoJSON"""
+        if not self.session_points:
+            QMessageBox.information(self, "Экспорт", "Нет данных для экспорта")
+            return
+        
+        # Создаем экспортер
+        exporter = GeoJSONExporter(self.user_data)
+        
+        # Сохраняем файл
+        filename = exporter.save_session(self.session_points)
+        
+        # Спрашиваем, очистить ли сессию после экспорта
+        reply = QMessageBox.question(
+            self, 'Экспорт завершен',
+            f"✓ Экспортировано {len(self.session_points)} точек\n"
+            f"Файл: {filename}\n\n"
+            f"Очистить сессию?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.Yes
+        )
+        
+        if reply == QMessageBox.Yes:
+            # Очищаем сессию
+            self.session_points.clear()
+            self.map_view.clear_markers()
+            self.update_history()
+            self.lat_label.setText("-")
+            self.lon_label.setText("-")
+            self.elevation_label.setText("-")
+            self.undo_button.setEnabled(False)
+            self.update_status()
+            print("✓ Сессия очищена")
+        
+    ##############################################
+
+
     def on_exit(self):
         """Выход из приложения"""
         if self.session_points:
             reply = QMessageBox.question(
-                self, 'Exit',
+                self, 'Выход',
                 self.i18n.t('confirm_exit'),
                 QMessageBox.Yes | QMessageBox.No,
                 QMessageBox.No
@@ -402,6 +464,11 @@ class MainWindow(QMainWindow):
                 self.close()
         else:
             self.close()
+    
+    def update_status(self):
+        """Обновление статусной строки"""
+        status = f"Точек: {len(self.session_points)} | Пользователь: {self.user_data['first_name']} {self.user_data['last_name']} | Сессия: {self.user_data['session_number']}"
+        self.status_bar.showMessage(status)
 
 
 # Для тестирования
@@ -410,7 +477,6 @@ if __name__ == "__main__":
     
     app = QApplication(sys.argv)
     
-    # Тестовые данные пользователя
     test_user = {
         'first_name': 'Иван',
         'last_name': 'ПЕТРОВ',

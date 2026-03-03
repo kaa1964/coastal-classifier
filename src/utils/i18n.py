@@ -42,18 +42,18 @@ TRANSLATIONS = {
         'point_info': 'Информация о точке',
         'latitude': 'Широта:',
         'longitude': 'Долгота:',
-        'elevation': 'Высота:',
+        'elevation': 'Высота/глубина:',  # замените существующую строку
         'class_selection': 'Класс точки:',
         'classes': {
             'OPEN_SEA': 'Открытое море',
-            'COASTAL_SEA': 'Прибрежная зона (море)',
-            'NEAR_COAST': 'Близко к берегу',
-            'COASTLINE': 'Береговая линия'
+            'COASTAL_SEA': 'Прибережье (море)',
+            'NEAR_COAST': 'Побережье (суша)',
+            'COASTLINE': 'Суша вдали от побережья'
         },
         'add_point': 'Добавить точку',
         'undo': 'Отменить',
         'export': 'Экспорт в GeoJSON',
-        'exit_without_save': 'Выйти без сохранения',
+        'exit_without_save': 'Выйти',
         
         # Сообщения
         'confirm_exit': 'Есть несохраненные данные. Вы уверены, что хотите выйти?',
@@ -95,7 +95,7 @@ TRANSLATIONS = {
         'point_info': 'Point Information',
         'latitude': 'Latitude:',
         'longitude': 'Longitude:',
-        'elevation': 'Elevation:',
+        'elevation': 'Elevation/Depth:',  # замените существующую строку
         'class_selection': 'Point Class:',
         'classes': {
             'OPEN_SEA': 'Open Sea',
@@ -106,7 +106,7 @@ TRANSLATIONS = {
         'add_point': 'Add Point',
         'undo': 'Undo',
         'export': 'Export to GeoJSON',
-        'exit_without_save': 'Exit without saving',
+        'exit_without_save': 'Exit',
         
         # Messages
         'confirm_exit': 'There are unsaved data. Are you sure you want to exit?',
