@@ -28,63 +28,162 @@ class NOAAAPI:
     
     def _timeout_handler(self, signum, frame):
         raise TimeoutException("Превышено время ожидания")
-    
+
+###########################################
     def get_depth(self, lat: float, lon: float, timeout_seconds: int = 30) -> Optional[Dict[str, Any]]:
-        """
-        Получает глубину/высоту из NOAA с таймаутом
-        """
-        if not self.available or not self.client:
-            return None
-        
-        # Устанавливаем обработчик таймаута
-        signal.signal(signal.SIGALRM, self._timeout_handler)
-        signal.alarm(timeout_seconds)
-        
-        try:
-            print(f"Запрос NOAA для ({lat:.2f}, {lon:.2f})...")
+            """
+            Получает глубину/высоту из NOAA с таймаутом
+            """
+            if not self.available or not self.client:
+                return None
             
-            # Выполняем запрос
-            data = self.client.get_point(latitude=lat, longitude=lon)
+            # Проверяем ОС
+            import platform
+            import threading
+            import time
             
-            # Сбрасываем таймаут
-            signal.alarm(0)
+            is_windows = platform.system() == 'Windows'
             
-            print(f"   Получено: {data} (тип: {type(data)})")
+            # Для Unix систем используем сигналы
+            if not is_windows:
+                signal.signal(signal.SIGALRM, self._timeout_handler)
+                signal.alarm(timeout_seconds)
             
-            # Обрабатываем результат
-            if data is not None:
-                # Извлекаем значение из numpy array
-                if hasattr(data, '__len__') and len(data) > 0:
-                    value = float(data[0])
-                elif isinstance(data, (int, float)):
-                    value = float(data)
-                else:
-                    print(f"   ⚠️ Неподдерживаемый тип: {type(data)}")
+            # Для Windows используем threading
+            if is_windows:
+                result_container = []
+                exception_container = []
+                completed = threading.Event()
+                
+                def worker():
+                    try:
+                        data = self.client.get_point(latitude=lat, longitude=lon)
+                        result_container.append(data)
+                    except Exception as e:
+                        exception_container.append(e)
+                    finally:
+                        completed.set()
+                
+                thread = threading.Thread(target=worker)
+                thread.daemon = True
+                thread.start()
+                
+                if not completed.wait(timeout=timeout_seconds):
+                    print(f"   ⏱️ Таймаут ({timeout_seconds}с)")
                     return None
                 
-                result = {
-                    'value': value,
-                    'type': 'depth' if value < 0 else 'height',
-                    'source': 'NOAA',
-                    'unit': 'м',
-                    'note': 'NOAA Bathymetry'
-                }
+                if exception_container:
+                    print(f"   ❌ Ошибка: {exception_container[0]}")
+                    return None
                 
-                print(f"   ✓ {result['type']}: {abs(value):.1f} м")
-                return result
+                data = result_container[0] if result_container else None
+            else:
+                # Для Unix - обычный код
+                try:
+                    print(f"Запрос NOAA для ({lat:.2f}, {lon:.2f})...")
+                    data = self.client.get_point(latitude=lat, longitude=lon)
+                    signal.alarm(0)
+                except TimeoutException:
+                    print(f"   ⏱️ Таймаут ({timeout_seconds}с)")
+                    signal.alarm(0)
+                    return None
+                except Exception as e:
+                    print(f"   ❌ Ошибка: {e}")
+                    signal.alarm(0)
+                    return None
+            
+            # Единая обработка результата для обеих ОС
+            print(f"   Получено: {data} (тип: {type(data)})")
+            
+            if data is not None:
+                try:
+                    if hasattr(data, '__len__') and len(data) > 0:
+                        value = float(data[0])
+                    elif isinstance(data, (int, float)):
+                        value = float(data)
+                    else:
+                        print(f"   ⚠️ Неподдерживаемый тип: {type(data)}")
+                        return None
+                    
+                    result = {
+                        'value': value,
+                        'type': 'depth' if value < 0 else 'height',
+                        'source': 'NOAA',
+                        'unit': 'м',
+                        'note': 'NOAA Bathymetry'
+                    }
+                    
+                    print(f"   ✓ {result['type']}: {abs(value):.1f} м")
+                    return result
+                    
+                except Exception as e:
+                    print(f"   ❌ Ошибка обработки: {e}")
+                    return None
             
             print("   ⚠️ Нет данных")
             return None
+
+
+###########################################
+    # def get_depth(self, lat: float, lon: float, timeout_seconds: int = 30) -> Optional[Dict[str, Any]]:
+    #     """
+    #     Получает глубину/высоту из NOAA с таймаутом
+    #     """
+    #     if not self.available or not self.client:
+    #         return None
+        
+    #     # Устанавливаем обработчик таймаута
+    #     signal.signal(signal.SIGALRM, self._timeout_handler)
+    #     signal.alarm(timeout_seconds)
+        
+    #     try:
+    #         print(f"Запрос NOAA для ({lat:.2f}, {lon:.2f})...")
             
-        except TimeoutException:
-            print(f"   ⏱️ Таймаут ({timeout_seconds}с)")
-            signal.alarm(0)
-            return None
-        except Exception as e:
-            print(f"   ❌ Ошибка: {e}")
-            signal.alarm(0)
-            return None
-    
+    #         # Выполняем запрос
+    #         data = self.client.get_point(latitude=lat, longitude=lon)
+            
+    #         # Сбрасываем таймаут
+    #         signal.alarm(0)
+            
+    #         print(f"   Получено: {data} (тип: {type(data)})")
+            
+    #         # Обрабатываем результат
+    #         if data is not None:
+    #             # Извлекаем значение из numpy array
+    #             if hasattr(data, '__len__') and len(data) > 0:
+    #                 value = float(data[0])
+    #             elif isinstance(data, (int, float)):
+    #                 value = float(data)
+    #             else:
+    #                 print(f"   ⚠️ Неподдерживаемый тип: {type(data)}")
+    #                 return None
+                
+    #             result = {
+    #                 'value': value,
+    #                 'type': 'depth' if value < 0 else 'height',
+    #                 'source': 'NOAA',
+    #                 'unit': 'м',
+    #                 'note': 'NOAA Bathymetry'
+    #             }
+                
+    #             print(f"   ✓ {result['type']}: {abs(value):.1f} м")
+    #             return result
+            
+    #         print("   ⚠️ Нет данных")
+    #         return None
+            
+    #     except TimeoutException:
+    #         print(f"   ⏱️ Таймаут ({timeout_seconds}с)")
+    #         signal.alarm(0)
+    #         return None
+    #     except Exception as e:
+    #         print(f"   ❌ Ошибка: {e}")
+    #         signal.alarm(0)
+    #         return None
+
+
+ ########################################################
+
     def get_batch(self, points: list, delay: float = 3.0) -> list:
         """
         Получает данные для нескольких точек с задержкой
