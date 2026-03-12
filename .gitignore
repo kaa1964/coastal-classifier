@@ -28,3 +28,9 @@ test_*.py
 !check_env.py*.odt
 docs/Без\ имени\ 1.odt
 docs/Без\ имени\ 1.odt
+aggregator/credentials.json
+aggregator/token.json
+
+# Ключи доступа
+aggregator/credentials.json
+aggregator/token.json
