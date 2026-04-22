@@ -113,8 +113,62 @@ TRANSLATIONS = {
         'export_success': 'Data successfully exported to {filename}',
         'export_error': 'Error exporting data',
         'api_error': 'API request error: {error}',
-    }
-}
+    },
+
+
+    # 👇 НАЧАЛО БЛОКА СЛОВАРЯ ДЛЯ КИТАЙСКОГО ЯЗЫКА
+    'zh': {
+        'app_name': 'Coastal Classifier',
+        'ok': '确定',
+        'cancel': '取消',
+        'save': '保存',
+        'exit': '退出',
+        
+        'registration_title': '用户注册',
+        'first_name': '名字:',
+        'last_name': '姓氏:',
+        'registration_date': '注册日期:',
+        'filename_preview': '保存文件名:',
+        'start_button': '开始工作',
+        'fill_name_warning': '请输入名字',
+        'fill_lastname_warning': '请输入姓氏',
+        'filename_placeholder': '请输入名字和姓氏',
+        
+        'language': '语言',
+        'russian': '俄语',
+        'english': '英语',
+        
+        'main_window_title': 'Coastal Classifier - 沿海区域标注',
+        'current_user': '用户:',
+        'current_session': '会话:',
+        'points_marked': '已标注点数:',
+        'select_point': '在地图上选择点',
+        'point_info': '点信息',
+        'latitude': '纬度:',
+        'longitude': '经度:',
+        'elevation': '海拔/深度:',
+        'class_selection': '点的类别:',
+        'classes': {
+            'OPEN_SEA': '公海',
+            'COASTAL_SEA': '近海水域',
+            'NEAR_COAST': '近岸陆地',
+            'COASTLINE': '内陆',
+        },
+        'add_point': '添加点',
+        'undo': '撤销',
+        'export': '导出为 GeoJSON',
+        'exit_without_save': '退出',
+        
+        'confirm_exit': '有未保存的数据。确定要退出吗？',
+        'export_success': '数据已成功导出到 {filename}',
+        'export_error': '导出数据时出错',
+        'api_error': 'API 请求错误: {error}',
+    },   # <-- НЕ ЗАБУДЬТЕ ЗАПЯТУЮ В КОНЦЕ НОВОГО БЛОКА
+
+}  # <-- конец блока словаря для китайского языка
+
+
+
 
 
 class I18n:

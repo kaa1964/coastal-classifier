@@ -54,6 +54,8 @@ class RegistrationDialog(QDialog):
         self.lang_combo = QComboBox()
         self.lang_combo.addItem("Русский", "ru")
         self.lang_combo.addItem("English", "en")
+        self.lang_combo.addItem("中文", "zh")
+  	
         self.lang_combo.currentIndexChanged.connect(self.on_language_changed)
         lang_layout.addWidget(self.lang_combo)
         lang_layout.addStretch()
