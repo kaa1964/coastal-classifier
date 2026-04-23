@@ -213,8 +213,9 @@ class MainWindow(QMainWindow):
                 font-size: 10pt;
             }
         """)
-        group_layout.addRow("Детали:", self.extra_info)
-        
+        #group_layout.addRow("Детали:", self.extra_info)
+        group_layout.addRow(self.i18n.t('details') + ":", self.extra_info)
+
         group.setLayout(group_layout)
         layout.addWidget(group)
         
@@ -278,17 +279,69 @@ class MainWindow(QMainWindow):
         
         group.setLayout(group_layout)
         layout.addWidget(group)
+######################################################    
     ####################
     @Slot(float, float)
     def on_map_click(self, lat, lon):
+        """Обработка клика на карте"""
         print(f"\n🎯 ГЛАВНОЕ ОКНО: получены координаты {lat:.6f}, {lon:.6f}")
         
-        # 1. Получаем данные
+        # Получаем данные из API
         elevation = self.elevation_api.get_elevation(lat, lon)
         noaa_data = self.noaa_api.get_depth(lat, lon)
         osm_features = self.overpass.get_coastal_features(lat, lon)
+     #############################################################   
+        # Формируем текст для отображения в Деталях
         
-        # 2. Сохраняем временную точку
+        info_text = f"{self.i18n.t('point_coordinates')} {lat:.4f}, {lon:.4f}\n\n"
+
+        # Высота/глубина
+        if noaa_data:
+            if noaa_data['value'] < 0:
+                info_text += self.i18n.t('depth_value', value=f"{abs(noaa_data['value']):.1f}") + "\n"
+            else:
+                info_text += self.i18n.t('elevation_value', value=f"{noaa_data['value']:.1f}") + "\n"
+        elif elevation is not None:
+            info_text += self.i18n.t('elevation_srtm', value=f"{elevation:.1f}") + "\n"
+
+        # Расстояние до берега
+        if 'distance_to_coast_km' in osm_features:
+            if osm_features['distance_to_coast_km'] is not None:
+                dist = osm_features['distance_to_coast_km']
+                info_text += self.i18n.t('distance_to_coast', dist=f"{dist:.1f}") + "\n"
+            else:
+                info_text += self.i18n.t('distance_no_data') + "\n"
+        else:
+            info_text += self.i18n.t('distance_failed') + "\n"
+
+        # Объекты инфраструктуры
+        if osm_features and osm_features.get('total_objects', 0) > 0:
+            info_text += f"\n{self.i18n.t('objects_in_radius')}\n"
+            
+            object_names = {
+                'piers': self.i18n.t('piers'),
+                'lighthouses': self.i18n.t('lighthouses'),
+                'breakwaters': self.i18n.t('breakwaters'),
+                'harbors': self.i18n.t('harbors'),
+                'rivers': self.i18n.t('rivers'),
+                'lakes': self.i18n.t('lakes'),
+                'beaches': self.i18n.t('beaches'),
+                'cliffs': self.i18n.t('cliffs'),
+                'industrial': self.i18n.t('industrial')
+            }
+            
+            for key, name in object_names.items():
+                if key in osm_features and osm_features[key] > 0:
+                    info_text += f"  • {name}: {osm_features[key]}\n"
+            
+            info_text += f"\n  {self.i18n.t('total_objects', count=osm_features.get('total_objects', 0))}"
+        else:
+            info_text += f"\n{self.i18n.t('objects_not_found')}"
+
+
+     ############################################################## 
+        
+        # Сохраняем временную точку
         self.temp_point = {
             'lat': lat,
             'lon': lon,
@@ -297,19 +350,19 @@ class MainWindow(QMainWindow):
             'osm_features': osm_features
         }
         
-        # 3. Обновляем информацию на панели
+        # Обновляем интерфейс
         self.update_point_info(self.temp_point)
+        self.extra_info.setText(info_text)
         
-        # 4. Добавляем ВРЕМЕННЫЙ маркер
-        self.map_view.add_temp_marker(lat, lon, "Предпросмотр")  # Проверьте эту строку
-        
-        # 5. Активируем кнопку
+        # Добавляем временный маркер
+        self.map_view.add_temp_marker(lat, lon, "Предпросмотр")
         self.add_button.setEnabled(True)
         
         print("✓ Точка предпросмотра. Выберите класс и нажмите 'Добавить точку'")
-    
-    
+
     ###########################
+#########################################
+
     def on_add_point(self):
         if not hasattr(self, 'temp_point') or not self.temp_point:
             QMessageBox.warning(self, "Внимание", "Сначала выберите точку на карте")
